@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: auth_postgres
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: auth_password_2024
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - auth_network
+    restart: unless-stopped
+
+  # FastAPI Backend
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: auth_backend
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://auth_user:auth_password_2024@postgres:5432/auth_db
+      - SECRET_KEY=your-super-secret-jwt-key-change-in-production-2024-secure
+      - SMTP_HOST=mail.spacemail.com
+      - SMTP_PORT=465
+      - SMTP_USERNAME=support@xsis.online
+      - SMTP_PASSWORD=Mathew#7436
+      - SMTP_USE_SSL=true
+      - FRONTEND_URL=https://pom.xsis.online
+      - DEVELOPMENT_MODE=false
+      - SKIP_EMAIL_VERIFICATION=false
+    depends_on:
+      - postgres
+    ports:
+      - "8000:8000"
+    networks:
+      - auth_network
+    restart: unless-stopped
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: auth_frontend
+    environment:
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+    networks:
+      - auth_network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: auth_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx-https.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - /var/www/certbot:/var/www/certbot
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - auth_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  auth_network:
+    driver: bridge
